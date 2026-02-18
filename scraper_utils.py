@@ -11,18 +11,19 @@ HEADERS = {
 
 def get_category_urls():
     """삼성 이탈리아 메인 페이지에서 스마트폰을 제외한 카테고리 URL들을 가져옵니다."""
-    # 수단으로 정의된 주요 카테고리 (딕셔너리 형태)
     default_categories = {
-        "Audio": "https://www.samsung.com/it/audio-sound/all-audio-sound/",
-        "Computers": "https://www.samsung.com/it/computers/all-computers/",
         "TVs": "https://www.samsung.com/it/tvs/all-tvs/",
+        "Audio": "https://www.samsung.com/it/audio-devices/all-audio-devices/",
+        "Buds": "https://www.samsung.com/it/audio-sound/all-audio-sound/",
+        "Projectors": "https://www.samsung.com/it/projectors/all-projectors/",
         "Monitors": "https://www.samsung.com/it/monitors/all-monitors/",
+        "Computers": "https://www.samsung.com/it/computers/all-computers/",
         "Refrigerators": "https://www.samsung.com/it/refrigerators/all-refrigerators/",
         "Washing Machines": "https://www.samsung.com/it/washing-machines/all-washing-machines/",
         "Vacuums": "https://www.samsung.com/it/vacuum-cleaners/all-vacuum-cleaners/",
         "Cooking": "https://www.samsung.com/it/cooking-appliances/all-cooking-appliances/",
-        "Dishwashers": "https://www.samsung.com/it/dishwashers/all-dishwashers/",
-        "Air Conditioners": "https://www.samsung.com/it/air-conditioners/all-air-conditioners/"
+        "Microwaves": "https://www.samsung.com/it/microwave-ovens/all-microwave-ovens/",
+        "Dishwashers": "https://www.samsung.com/it/dishwashers/all-dishwashers/"
     }
     
     return default_categories
@@ -162,22 +163,29 @@ def extract_product_details(pdp_url, display_name):
         if tax_price == "0": tax_price = list_price
 
         # 3. 재고 상태
-        in_stock = "Aggiungi al carrello" in text or "In stock" in text
+        # "Acquista" (Buy) 및 "Scopri di più" (Learn more - often for available models with variants) 대응
+        in_stock = any(kw in text for kw in ["Aggiungi al carrello", "In stock", "Acquista", "Acquista ora"])
+        
         if not in_stock:
             stock_match = re.search(r'\"stockLevelStatus\"\s*:\s*\"(.*?)\"', text)
             if stock_match:
                 in_stock = "instock" in stock_match.group(1).lower()
+        
+        # 특정 버튼 ID나 클래스로 더 정확히 확인 (PC 버전 등을 위해)
+        if not in_stock:
+            if soup.find('a', attrs={'data-cta-name': 'acquista'}) or soup.find('a', string=re.compile(r'Acquista', re.I)):
+                in_stock = True
 
         if model_code:
             # 최종 정수 변환 및 비우기 로직
             try:
                 f_tax = str(int(float(tax_price))) if float(tax_price) > 0 else ""
                 f_list = str(int(float(list_price))) if float(list_price) > 0 else ""
-                f_sale = str(int(float(sale_price))) if float(sale_price) > 0 else "0"
+                f_sale = str(int(float(sale_price))) if float(sale_price) > 0 else ""
             except:
-                f_tax, f_list, f_sale = "", "", sale_price if sale_price != "0" else "0"
+                f_tax, f_list, f_sale = "", "", ""
             
-            # SalePrice와 동일하거나 정보가 없는 경우 비움 (TaxPrice만 null 처리)
+            # SalePrice와 동일한 경우 TaxPrice 비움
             if f_tax == f_sale: f_tax = ""
             
             variant = {
